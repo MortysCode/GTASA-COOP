@@ -1,12 +1,16 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using CoopLauncher.Core;
 
 internal static class InstallationTests
 {
+    [DllImport("imagehlp.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint MapFileAndCheckSumW(string fileName, out uint storedChecksum, out uint calculatedChecksum);
+
     public static async Task Run(Action<string, Action> test, string[] args)
     {
         var root = Path.Combine(Path.GetTempPath(), "coop-install-tests-" + Guid.NewGuid().ToString("N"));
@@ -86,7 +90,8 @@ internal static class InstallationTests
                 var source = Source(); var target = Fresh(); var mods = PrepareMods(); var coop = Coop();
                 var hash = PackageVerifier.HashFile(Path.Combine(source, "gta_sa.exe"));
                 new GameInstaller(() => false).Install(source, target, mods, coop);
-                Check(PackageVerifier.HashFile(Path.Combine(target, "gta_sa.exe")) == hash, "base executable changed");
+                Check(PackageVerifier.HashFile(Path.Combine(source, "gta_sa.exe")) == hash, "source executable changed");
+                Check(GtaExecutable.IsLargeAddressAware(Path.Combine(target, "gta_sa.exe")), "fresh installation did not enable 4GB patch");
                 foreach (var file in mods.Manifest.Files.Concat(coop.Manifest.Files))
                     Check(PackageVerifier.HashFile(Path.Combine(target, file.Path)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase), "installed file differs");
                 foreach (var name in new[] { "GTASAsf1.b", "gta_sa.set", "coop/server-data/profiles/private.bin", "modloader/foreign-mod/old.txt" })
@@ -94,6 +99,46 @@ internal static class InstallationTests
                 var config = File.ReadAllText(Path.Combine(target, "coop", "coop.ini"));
                 Check(config.Contains("127.0.0.1") && !config.Contains("PRIVATE"), "source connection settings leaked");
                 CheckSource(source);
+            });
+            foreach (bool oddLength in new[] { false, true }) test("4GB patch preserves game code and matches Windows checksum, odd length=" + oddLength, () =>
+            {
+                var source = Source(); var sourceExe = Path.Combine(source, "gta_sa.exe");
+                if (oddLength) { using var append = new FileStream(sourceExe, FileMode.Append); append.Write(new byte[] { 0x99, 0x18, 0xFF }); }
+                var original = File.ReadAllBytes(sourceExe);
+                var target = Path.Combine(Fresh(), "patched-game");
+                new GameInstaller(() => false).Install(source, target, PrepareMods(), Coop());
+                var targetExe = Path.Combine(target, "gta_sa.exe"); var patched = File.ReadAllBytes(targetExe);
+                Check(original.SequenceEqual(File.ReadAllBytes(sourceExe)), "4GB patch modified original copy");
+                Check(original.Length == patched.Length, "4GB patch changed executable length");
+                Check(BinaryPrimitives.ReadUInt16LittleEndian(patched.AsSpan(0x96, 2)) == 0x0122, "other COFF flags were changed");
+                for (int i = 0; i < original.Length; ++i)
+                    if (i is not (0x96 or 0x97 or 0xD8 or 0xD9 or 0xDA or 0xDB)) Check(original[i] == patched[i], "patch changed code or unrelated metadata");
+                if (OperatingSystem.IsWindows())
+                {
+                    Check(MapFileAndCheckSumW(targetExe, out var stored, out var calculated) == 0, "Windows checksum verification failed");
+                    Check(stored == calculated && stored == BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(0xD8, 4)), "PE checksum differs from Windows ImageHlp");
+                }
+            });
+            test("already enabled 4GB patch keeps the copied executable byte for byte", () =>
+            {
+                var source = Source(); var sourceExe = Path.Combine(source, "gta_sa.exe"); var original = File.ReadAllBytes(sourceExe);
+                BinaryPrimitives.WriteUInt16LittleEndian(original.AsSpan(0x96, 2), 0x0122);
+                File.WriteAllBytes(sourceExe, original);
+                var target = Path.Combine(Fresh(), "already-patched-game");
+                new GameInstaller(() => false).Install(source, target, PrepareMods(), Coop());
+                var targetExe = Path.Combine(target, "gta_sa.exe");
+                Check(original.SequenceEqual(File.ReadAllBytes(targetExe)), "already patched EXE was rewritten");
+                Check(!GtaExecutable.EnableLargeAddressAware(targetExe), "4GB patch was not idempotent");
+                Check(original.SequenceEqual(File.ReadAllBytes(targetExe)), "second patch changed EXE bytes");
+            });
+            test("incompatible or cancelled 4GB patch never writes an executable", () =>
+            {
+                var source = Source(); var path = Path.Combine(source, "gta_sa.exe"); var original = File.ReadAllBytes(path);
+                Reject(() => GtaExecutable.EnableLargeAddressAware(path, new CancellationToken(true)));
+                Check(original.SequenceEqual(File.ReadAllBytes(path)), "pre-cancelled patch changed EXE");
+                File.WriteAllText(path, "INCOMPATIBLE-EXECUTABLE");
+                Reject(() => GtaExecutable.EnableLargeAddressAware(path));
+                Check(File.ReadAllText(path) == "INCOMPATIBLE-EXECUTABLE", "incompatible EXE changed");
             });
             test("nonempty targets and overlapping source/target paths rejected", () =>
             {
@@ -188,6 +233,28 @@ internal static class InstallationTests
                 var source = GameInstaller.ValidateSource(args[sourceIndex + 1]);
                 var plan = GameInstaller.Plan(source, Path.Combine(Fresh(), "new-game"), example.Manifest, Coop().Manifest);
                 Check(plan.SourceFiles.Count >= GameInstaller.RequiredSourceFiles.Length && plan.SourceBytes > 0, "source inventory incomplete");
+            });
+            if (sourceIndex >= 0 && sourceIndex + 1 < args.Length) test("actual GTA EXE patched only on an isolated copy with Windows checksum verification", () =>
+            {
+                var sourceExe = Path.Combine(GameInstaller.ValidateSource(args[sourceIndex + 1]), "gta_sa.exe");
+                var original = File.ReadAllBytes(sourceExe);
+                int peOffset = BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(0x3C, 4));
+                int flagsOffset = peOffset + 22, checksumOffset = peOffset + 88;
+                var copy = (byte[])original.Clone();
+                ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(copy.AsSpan(flagsOffset, 2));
+                BinaryPrimitives.WriteUInt16LittleEndian(copy.AsSpan(flagsOffset, 2), (ushort)(flags & ~0x0020));
+                var path = Path.Combine(Fresh(), "gta_sa.exe"); File.WriteAllBytes(path, copy);
+                Check(GtaExecutable.EnableLargeAddressAware(path), "real EXE patch did not run");
+                var patched = File.ReadAllBytes(path);
+                Check(GtaExecutable.IsLargeAddressAware(path) && patched.Length == original.Length, "real EXE was not patched correctly");
+                for (int i = 0; i < original.Length; ++i)
+                    if (!(i >= flagsOffset && i < flagsOffset + 2) && !(i >= checksumOffset && i < checksumOffset + 4))
+                        Check(original[i] == patched[i], "real EXE code or unrelated data changed");
+                if (OperatingSystem.IsWindows())
+                {
+                    Check(MapFileAndCheckSumW(path, out var stored, out var calculated) == 0 && stored == calculated, "actual EXE checksum differs from Windows");
+                }
+                Check(original.SequenceEqual(File.ReadAllBytes(sourceExe)), "original installed GTA EXE changed");
             });
             var packageIndex = Array.IndexOf(args, "--installation");
             if (packageIndex >= 0 && packageIndex + 1 < args.Length) test("actual full modpack installs with every published hash", () =>

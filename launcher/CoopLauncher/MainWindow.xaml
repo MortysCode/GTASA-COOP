@@ -23,7 +23,7 @@
        <Button x:Name="UpdatesNav" Style="{StaticResource Nav}" Click="UpdatesClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Muted}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Обновления"/></StackPanel></Button>
        <Button x:Name="SettingsNav" Style="{StaticResource Nav}" Click="SettingsClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Muted}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Настройки"/></StackPanel></Button>
       </StackPanel>
-      <TextBlock Grid.Row="2" Text="Лаунчер 1.1.0" Foreground="#758389" Margin="23,0" VerticalAlignment="Center" FontSize="12"/>
+      <TextBlock Grid.Row="2" Text="Лаунчер 1.1.1" Foreground="#758389" Margin="23,0" VerticalAlignment="Center" FontSize="12"/>
      </Grid>
     </Border>
     <Grid Grid.Column="1" Margin="22,0,22,18">
@@ -89,7 +89,7 @@
         <TextBlock Text="Папка должна быть новой или пустой. Исходная игра и её сохранения остаются на месте." TextWrapping="Wrap" Foreground="#7F8D93" FontSize="12" Margin="0,8,0,15"/>
         <Border Background="#10191D" BorderBrush="#304238" BorderThickness="1" CornerRadius="6" Padding="15">
          <StackPanel><TextBlock Text="Что установится" FontWeight="Bold" FontSize="16"/>
-          <TextBlock Text="SA:COOP со всеми командами и догонялками · ModLoader · CLEO · SilentPatch · исправления для 60 FPS · графические моды сборки" TextWrapping="Wrap" Foreground="#CFD6D5" LineHeight="23" Margin="0,7,0,0"/>
+          <TextBlock Text="SA:COOP со всеми командами и догонялками · ModLoader · CLEO · SilentPatch · 4GB-патч · исправления для 60 FPS · графические моды сборки" TextWrapping="Wrap" Foreground="#CFD6D5" LineHeight="23" Margin="0,7,0,0"/>
           <TextBlock x:Name="InstallInfoText" Text="Пакет модов — около 952 МБ для скачивания и 2 ГБ после распаковки. Дополнительно нужно место для копии вашей GTA и временных файлов." TextWrapping="Wrap" Foreground="{StaticResource Muted}" LineHeight="21" Margin="0,7,0,0"/>
          </StackPanel>
         </Border>

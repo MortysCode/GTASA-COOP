@@ -1,4 +1,4 @@
-# SA:COOP Launcher 1.1.0
+# SA:COOP Launcher 1.1.1
 
 Автономный Windows x64 лаунчер: обновление SA:COOP и установка сборки с модами из собственной GTA игрока.
 
@@ -16,6 +16,9 @@
 Моды, установленные в другой исходной копии, поверх нашего пакета не переносятся.
 
 Пакет содержит текущие ModLoader-моды, CLEO, ASI-загрузчики, SilentPatch, исправления для 60 FPS и их настройки.
+При новой установке лаунчер автоматически включает 4GB-патч (LAA) в скопированном `gta_sa.exe` и пересчитывает PE-контрольную сумму.
+Если LAA уже включён, EXE не переписывается. Исходный файл остаётся на месте. Это не преобразование другой версии GTA в 1.0 US.
+Обычное обновление SA:COOP существующий `gta_sa.exe` не меняет.
 Имеющиеся авторские readme и лицензии включены. Пакет: примерно 952 МБ скачивания и 2 ГБ после распаковки.
 Нужно место для копии GTA, модов и временных файлов; лаунчер проверяет свободное место на обоих дисках.
 
@@ -74,7 +77,7 @@
 Репозиторий: `https://github.com/MortysCode/GTASA-COOP`. Стабильные выпуски публикуются через GitHub Actions при push нового тега `v*`.
 
 1. Соберите и проверьте новую версию, загрузите исходники.
-2. Отправьте тег соответствующей версии, например `v0.3.1.9`. Для ручной публикации откройте **Releases → Draft a new release**.
+2. Отправьте тег соответствующей версии, например `v0.3.1.10`. Для ручной публикации откройте **Releases → Draft a new release**.
 3. Прикрепите **отдельными файлами** содержимое подготовленной папки `SA-COOP-GitHub-release`:
    `sa-coop-update.json`, `SA-COOP-ВЕРСИЯ-update.zip`, `SA-COOP-Launcher-win-x64.zip`.
 4. Опубликуйте обычный стабильный релиз, не Draft и не Prerelease.
@@ -98,7 +101,7 @@ ZIP мода и `sa-coop-update.json` всегда публикуются пар
 python tools/build.py dist
 dotnet run --project launcher/CoopLauncher.Tests -c Release
 dotnet publish launcher/CoopLauncher/CoopLauncher.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=8.0.30 -o build/launcher/win-x64
-python tools/package_launcher_release.py --tag v0.3.1.9
+python tools/package_launcher_release.py --tag v0.3.1.10
 ```
 
 Последняя команда кладёт готовые release assets в `build/github-release`.
@@ -127,5 +130,7 @@ ZIP traversal, повторные имена, подмена подготовл�
 - https://docs.github.com/en/rest/releases/releases#get-the-latest-release
 - https://docs.github.com/en/rest/releases/assets#get-a-release-asset
 - https://learn.microsoft.com/en-us/dotnet/desktop/wpf/overview/
+- https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
+- https://learn.microsoft.com/en-us/windows/win32/api/imagehlp/nf-imagehlp-mapfileandchecksumw
 
 Баннер создан встроенным imagegen. Промпт и расположение ассета: [DESIGN.md](DESIGN.md).

@@ -1,6 +1,3 @@
-using System.Buffers.Binary;
-using System.Reflection.PortableExecutable;
-
 namespace CoopLauncher.Core;
 
 public sealed record GameInstallProgress(string Stage, long CompletedBytes, long TotalBytes);
@@ -70,19 +67,7 @@ public sealed class GameInstaller(Func<bool>? running = null)
             InstallPaths.NoLinks(path);
             if (!File.Exists(path)) throw new IOException("В исходной GTA отсутствует " + name + ". Выберите полную установленную игру.");
         }
-        try
-        {
-            using var file = File.OpenRead(Path.Combine(root, "gta_sa.exe"));
-            using var pe = new PEReader(file);
-            var header = pe.PEHeaders.PEHeader;
-            if (header is null || header.ImageBase != 0x400000 || pe.PEHeaders.CoffHeader.Machine != Machine.I386 ||
-                BinaryPrimitives.ReadUInt32LittleEndian(pe.GetSectionData(0x42457C).GetContent(0, 4).AsSpan()) != 0x94BF)
-                throw new BadImageFormatException();
-        }
-        catch (Exception ex) when (ex is BadImageFormatException or ArgumentOutOfRangeException or InvalidOperationException)
-        {
-            throw new InvalidDataException("Для этой сборки SA:COOP нужна GTA San Andreas 1.0 US. Выбранный gta_sa.exe несовместим.", ex);
-        }
+        GtaExecutable.IsLargeAddressAware(Path.Combine(root, "gta_sa.exe")); // also validates compatibility
         return root;
     }
     public static string ValidateDestination(string source, string destination)
@@ -177,6 +162,8 @@ public sealed class GameInstaller(Func<bool>? running = null)
                 Copy(Path.Combine(coop.StagingDirectory, file.Path), file.Path, file.Size, file.Sha256, "Устанавливаем SA:COOP");
             var exe = plan.SourceFiles.Single(f => f.Path == "gta_sa.exe");
             Copy(Path.Combine(plan.Source, exe.Path), exe.Path, exe.Size, null, "Завершаем установку");
+            progress?.Report(new("Включаем 4GB-патч", done, total));
+            GtaExecutable.EnableLargeAddressAware(Path.Combine(stage, exe.Path), cancellation);
             File.WriteAllText(Path.Combine(stage, "coop", "coop.ini"), "[player]\nname = Player\nlanguage = ru\n\n[connect]\nauto_connect = 0\nmode = join\nhost = 127.0.0.1\nport = 7788\npassword =\n");
             File.WriteAllText(Path.Combine(stage, "coop", "installed-modpack.json"), System.Text.Json.JsonSerializer.Serialize(new { mods.Manifest.Version, CoopVersion = coop.Manifest.Version }, LauncherInfo.Json));
             ValidateSource(stage);

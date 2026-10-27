@@ -14,7 +14,7 @@ public sealed class NoReleaseException(string message) : InvalidOperationExcepti
 
 public static class LauncherInfo
 {
-    public const string Version = "1.1.0";
+    public const string Version = "1.1.1";
     public const string DefaultRepository = "MortysCode/GTASA-COOP";
     public const string InstallationReleaseTag = "modpack-v1.0.0";
     public const long MaximumPackageBytes = 128 * 1024 * 1024;
