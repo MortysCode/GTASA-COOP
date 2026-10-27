@@ -1,0 +1,54 @@
+name: Build and publish SA-COOP
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install native toolchain
+        run: ./tools/get-toolchain.ps1
+      - name: Build game mod
+        run: python tools/build.py dist
+      - name: Validate source structure
+        run: |
+          python tools/fsd_check.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tools/i18n_check.py
+      - name: Test launcher updater
+        run: dotnet run --project launcher/CoopLauncher.Tests -c Release
+      - name: Test multiplayer protocol
+        run: |
+          python tools/test_tag.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tools/test_money.py
+      - name: Build standalone launcher
+        run: dotnet publish launcher/CoopLauncher/CoopLauncher.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=8.0.30 -o build/launcher/win-x64
+      - name: Package matching release assets
+        run: python tools/package_launcher_release.py --tag $env:GITHUB_REF_NAME
+      - name: Publish stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $manifest = Get-Content build/github-release/sa-coop-update.json -Raw | ConvertFrom-Json
+          $assets = @('build/github-release/sa-coop-update.json', ('build/github-release/' + $manifest.package.name), 'build/github-release/SA-COOP-Launcher-win-x64.zip')
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "SA:COOP $env:GITHUB_REF_NAME" --notes-file docs/LATEST-RELEASE.md
