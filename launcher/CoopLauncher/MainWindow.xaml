@@ -19,10 +19,11 @@
        <TextBlock Text="S A N   A N D R E A S" FontSize="9" Margin="3,5,0,0" Foreground="#B5BDBB"/></StackPanel>
       <StackPanel Grid.Row="1">
        <Button x:Name="HomeNav" Style="{StaticResource Nav}" Click="HomeClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Green}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Главная" FontWeight="SemiBold"/></StackPanel></Button>
+       <Button x:Name="InstallNav" Style="{StaticResource Nav}" Click="InstallPageClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Muted}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Установить игру"/></StackPanel></Button>
        <Button x:Name="UpdatesNav" Style="{StaticResource Nav}" Click="UpdatesClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Muted}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Обновления"/></StackPanel></Button>
        <Button x:Name="SettingsNav" Style="{StaticResource Nav}" Click="SettingsClick"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource Muted}" FontSize="22" Margin="0,0,14,0"/><TextBlock Text="Настройки"/></StackPanel></Button>
       </StackPanel>
-      <TextBlock Grid.Row="2" Text="Лаунчер 1.0.1" Foreground="#758389" Margin="23,0" VerticalAlignment="Center" FontSize="12"/>
+      <TextBlock Grid.Row="2" Text="Лаунчер 1.1.0" Foreground="#758389" Margin="23,0" VerticalAlignment="Center" FontSize="12"/>
      </Grid>
     </Border>
     <Grid Grid.Column="1" Margin="22,0,22,18">
@@ -70,6 +71,31 @@
          <Button Content="Открыть Releases ↗" Click="OpenReleases" Margin="0,0,0,8"/></WrapPanel>
        </Grid>
       </Border>
+      <Border x:Name="InstallPage" Visibility="Collapsed" Background="#172025" CornerRadius="9" Padding="26">
+       <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+        <TextBlock Text="Установить игру" FontSize="28" FontWeight="Bold"/>
+        <TextBlock Text="Ваша GTA + готовая сборка SA:COOP" Foreground="{StaticResource Green}" FontSize="19" Margin="0,10,0,10"/>
+        <TextBlock Text="Выберите собственную установленную GTA San Andreas 1.0 US. Лаунчер скопирует её в новую папку, скачает моды этой сборки и последнюю версию SA:COOP." Foreground="#CFD6D5" TextWrapping="Wrap" LineHeight="23"/>
+        <TextBlock Text="1. Ваша копия GTA San Andreas 1.0 US" Margin="0,24,0,8" Foreground="{StaticResource Muted}"/>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <TextBox x:Name="InstallSourceInput" IsReadOnly="True" VerticalContentAlignment="Center"/>
+         <Button x:Name="InstallSourceButton" Grid.Column="1" Content="Выбрать…" Click="InstallSourceClick" Margin="10,0,0,0"/>
+        </Grid>
+        <TextBlock Text="2. Новая папка для игры с модами" Margin="0,20,0,8" Foreground="{StaticResource Muted}"/>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <TextBox x:Name="InstallTargetInput" VerticalContentAlignment="Center"/>
+         <Button x:Name="InstallTargetButton" Grid.Column="1" Content="Выбрать…" Click="InstallTargetClick" Margin="10,0,0,0"/>
+        </Grid>
+        <TextBlock Text="Папка должна быть новой или пустой. Исходная игра и её сохранения остаются на месте." TextWrapping="Wrap" Foreground="#7F8D93" FontSize="12" Margin="0,8,0,15"/>
+        <Border Background="#10191D" BorderBrush="#304238" BorderThickness="1" CornerRadius="6" Padding="15">
+         <StackPanel><TextBlock Text="Что установится" FontWeight="Bold" FontSize="16"/>
+          <TextBlock Text="SA:COOP со всеми командами и догонялками · ModLoader · CLEO · SilentPatch · исправления для 60 FPS · графические моды сборки" TextWrapping="Wrap" Foreground="#CFD6D5" LineHeight="23" Margin="0,7,0,0"/>
+          <TextBlock x:Name="InstallInfoText" Text="Пакет модов — около 952 МБ для скачивания и 2 ГБ после распаковки. Дополнительно нужно место для копии вашей GTA и временных файлов." TextWrapping="Wrap" Foreground="{StaticResource Muted}" LineHeight="21" Margin="0,7,0,0"/>
+         </StackPanel>
+        </Border>
+        <Button x:Name="InstallStartButton" Content="Установить игру с SA:COOP" Click="InstallGameClick" HorizontalAlignment="Left" Background="#4D9E48" BorderBrush="#77C86C" Margin="0,20,0,0" Padding="22,14"/>
+       </StackPanel></ScrollViewer>
+      </Border>
       <Border x:Name="SettingsPage" Visibility="Collapsed" Background="#172025" CornerRadius="9" Padding="26">
        <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
         <TextBlock Text="Настройки" FontSize="28" FontWeight="Bold"/>
@@ -86,13 +112,14 @@
         <WrapPanel Margin="0,23,0,0"><Button x:Name="SaveSettingsButton" Content="Сохранить настройки" Click="SaveSettingsClick" Margin="0,0,10,8"/>
          <Button Content="Резервные копии" Click="OpenBackups" Margin="0,0,0,8"/>
         </WrapPanel>
-        <TextBlock Text="Сохранения и coop.ini остаются вашими. Лаунчер обновляет только клиент, сервер и файл отладки SA:COOP." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,24,0,0" LineHeight="22"/>
+        <TextBlock Text="Обновление SA:COOP сохраняет ваши сохранения и coop.ini. Для установки GTA с полным набором модов используйте вкладку «Установить игру»." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,24,0,0" LineHeight="22"/>
        </StackPanel></ScrollViewer>
       </Border>
      </Grid>
      <StackPanel Grid.Row="2" Margin="0,14,0,0">
       <ProgressBar x:Name="Progress" Visibility="Collapsed" Height="4" Foreground="{StaticResource Green}" Background="#283237" Minimum="0" Maximum="100" Margin="0,0,0,9"/>
       <TextBlock x:Name="OperationText" Visibility="Collapsed" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"/>
+      <Button x:Name="CancelInstallButton" Content="Отменить установку" Click="CancelInstallClick" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,0,0,8" Padding="12,7"/>
       <Border Background="#141C21" BorderBrush="#2B373C" BorderThickness="1" CornerRadius="8" Padding="18,13">
        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="250"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center" Margin="0,0,10,0"><TextBlock Text="Grand Theft Auto — San Andreas" FontWeight="Bold" FontSize="16"/>

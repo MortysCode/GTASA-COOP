@@ -182,15 +182,18 @@ try
         catch(InvalidDataException) { Check(!File.Exists(destination),"bad download left on disk"); }
         Console.WriteLine("PASS failed download cleanup and existing destination preservation"); ++passed;
     }
-    if(args.Length==2 && args[0]=="--package") Test("actual packaged release installs into an isolated fake game",()=>
+    var nativePackageIndex = Array.IndexOf(args,"--package");
+    if(nativePackageIndex>=0 && nativePackageIndex+1<args.Length) Test("actual packaged release installs into an isolated fake game",()=>
     {
-        var manifest=JsonSerializer.Deserialize<UpdateManifest>(File.ReadAllText(args[1]),LauncherInfo.Json)!;
-        var zipPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1]))!,manifest.Package.Name);
+        var manifestPath=args[nativePackageIndex+1];
+        var manifest=JsonSerializer.Deserialize<UpdateManifest>(File.ReadAllText(manifestPath),LauncherInfo.Json)!;
+        var zipPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(manifestPath))!,manifest.Package.Name);
         var package=PackageVerifier.Prepare(zipPath,Path.Combine(Fresh("real-release"),"files"),manifest);
         var game=Game(); new UpdateInstaller(()=>false).Install(package,game); Protected(game);
         Check(LauncherInfo.InstalledVersion(game)==manifest.Version,"actual DLL product version mismatch");
         foreach(var file in manifest.Files) Check(PackageVerifier.HashFile(Path.Combine(game,file.Path)).Equals(file.Sha256,StringComparison.OrdinalIgnoreCase),"actual release hash mismatch");
     });
+    await InstallationTests.Run(Test, args);
     Console.WriteLine($"{passed} launcher checks passed. All game writes used isolated fake installations.");
     return 0;
 }

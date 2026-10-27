@@ -45,6 +45,8 @@ jobs:
         run: dotnet publish launcher/CoopLauncher/CoopLauncher.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=8.0.30 -o build/launcher/win-x64
       - name: Package matching release assets
         run: python tools/package_launcher_release.py --tag $env:GITHUB_REF_NAME
+      - name: Verify packaged update
+        run: dotnet run --project launcher/CoopLauncher.Tests -c Release -- --package build/github-release/sa-coop-update.json
       - name: Publish stable release
         env:
           GH_TOKEN: ${{ github.token }}

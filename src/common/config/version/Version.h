@@ -1,7 +1,7 @@
 #pragma once
 
 #define COOP_NAME "SA:COOP"
-#define COOP_VERSION_STR "0.3.1.8"  // temporary maximum stamina in tag, restore the original level on exit
+#define COOP_VERSION_STR "0.3.1.9"  // launcher installation from an owned GTA copy; gameplay and protocol unchanged
 
 #ifndef RC_INVOKED  // the resource compiler reads only the macros above (VersionInfo.rc)
 #include <cstdint>

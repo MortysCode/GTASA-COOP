@@ -10,8 +10,8 @@ public sealed class GitHubUpdates : IDisposable
     private readonly HttpClient http;
     public GitHubUpdates(HttpMessageHandler? handler = null)
     {
-        http = handler is null ? new() : new(handler);
-        http.Timeout = TimeSpan.FromMinutes(5);
+        http = handler is null ? new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(25) }) : new(handler);
+        http.Timeout = TimeSpan.FromHours(2); // installation downloads are much larger than mod updates
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"SA-COOP-Launcher/{LauncherInfo.Version}");
     }
 
@@ -67,16 +67,51 @@ public sealed class GitHubUpdates : IDisposable
         return uri;
     }
 
-    public async Task DownloadAsync(ReleaseUpdate update, string destination, IProgress<double>? progress,
-        CancellationToken cancellation = default)
+    public async Task<InstallationRelease> CheckInstallationAsync(CancellationToken cancellation = default)
+    {
+        const string repository = LauncherInfo.DefaultRepository;
+        using var response = await http.GetAsync($"https://api.github.com/repos/{repository}/releases/tags/{LauncherInfo.InstallationReleaseTag}", cancellation);
+        response.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await LimitedReadAsync(response, 2 * 1024 * 1024, cancellation));
+        var release = json.RootElement;
+        if (release.GetProperty("draft").GetBoolean() || release.GetProperty("tag_name").GetString() != LauncherInfo.InstallationReleaseTag)
+            throw new InvalidDataException("Пакет установки ещё не опубликован.");
+        var assets = release.GetProperty("assets").EnumerateArray().ToList();
+        JsonElement Asset(string name)
+        {
+            var found = assets.Where(a => a.GetProperty("name").GetString() == name).ToList();
+            if (found.Count != 1) throw new InvalidDataException("В установочном релизе отсутствует файл " + name);
+            return found[0];
+        }
+        using var manifestResponse = await http.GetAsync(AssetUri(Asset("sa-coop-install.json"), repository), HttpCompletionOption.ResponseHeadersRead, cancellation);
+        manifestResponse.EnsureSuccessStatusCode();
+        var manifest = JsonSerializer.Deserialize<InstallationManifest>(await LimitedReadAsync(manifestResponse, 2 * 1024 * 1024, cancellation), LauncherInfo.Json)
+            ?? throw new InvalidDataException("Установочный манифест пуст.");
+        InstallationPackage.ValidateManifest(manifest);
+        if (LauncherInfo.ParseVersion(manifest.MinimumLauncherVersion) > LauncherInfo.ParseVersion(LauncherInfo.Version))
+            throw new InvalidOperationException("Для установки этой сборки скачайте новую версию лаунчера.");
+        var package = Asset(manifest.Package.Name);
+        if (package.GetProperty("size").GetInt64() != manifest.Package.Size)
+            throw new InvalidDataException("Размер установочного пакета не совпал с GitHub.");
+        return new(manifest, AssetUri(package, repository));
+    }
+
+    public Task DownloadAsync(ReleaseUpdate update, string destination, IProgress<double>? progress,
+        CancellationToken cancellation = default) => DownloadPackageAsync(update.PackageUrl, update.Manifest.Package, destination, progress, cancellation);
+
+    public Task DownloadAsync(InstallationRelease update, string destination, IProgress<double>? progress,
+        CancellationToken cancellation = default) => DownloadPackageAsync(update.PackageUrl, update.Manifest.Package, destination, progress, cancellation);
+
+    private async Task DownloadPackageAsync(Uri url, PackageInfo package, string destination, IProgress<double>? progress,
+        CancellationToken cancellation)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         bool createdDestination = false;
         try
         {
-            using var response = await http.GetAsync(update.PackageUrl, HttpCompletionOption.ResponseHeadersRead, cancellation);
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellation);
             response.EnsureSuccessStatusCode();
-            if (response.Content.Headers.ContentLength is long size && size != update.Manifest.Package.Size)
+            if (response.Content.Headers.ContentLength is long size && size != package.Size)
                 throw new InvalidDataException("Сервер вернул архив другого размера.");
             await using var input = await response.Content.ReadAsStreamAsync(cancellation);
             await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
@@ -88,12 +123,12 @@ public sealed class GitHubUpdates : IDisposable
             while ((n = await input.ReadAsync(buffer, cancellation)) != 0)
             {
                 total += n;
-                if (total > update.Manifest.Package.Size) throw new InvalidDataException("Архив больше указанного размера.");
+                if (total > package.Size) throw new InvalidDataException("Архив больше указанного размера.");
                 hash.AppendData(buffer, 0, n);
                 await output.WriteAsync(buffer.AsMemory(0, n), cancellation);
-                progress?.Report((double)total / update.Manifest.Package.Size);
+                progress?.Report((double)total / package.Size);
             }
-            if (total != update.Manifest.Package.Size || !PackageVerifier.HashEquals(hash.GetHashAndReset(), update.Manifest.Package.Sha256))
+            if (total != package.Size || !PackageVerifier.HashEquals(hash.GetHashAndReset(), package.Sha256))
                 throw new InvalidDataException("Архив повреждён: контрольная сумма не совпала. Установленные файлы не менялись.");
         }
         catch { if (createdDestination && File.Exists(destination)) File.Delete(destination); throw; }
